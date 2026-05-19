@@ -175,7 +175,7 @@ jobs:
         # No requiere compilación previa para que CodeQL extraiga la BD.
         # config-file referencia la configuración avanzada con queries
         # extendidas y rutas excluidas.
-        uses: github/codeql-action/init@v3 # v3.27.5
+        uses: github/codeql-action/init@v4 # v3.27.5
         with:
           languages: javascript-typescript
           build-mode: none
@@ -184,7 +184,7 @@ jobs:
       - name: Ejecutar análisis CodeQL
         # Sube automáticamente el SARIF a la pestaña Security → Code
         # scanning alerts. Cada hallazgo viene con CWE asociado.
-        uses: github/codeql-action/analyze@v3 # v3.27.5
+        uses: github/codeql-action/analyze@v4 # v3.27.5
         with:
           category: "/language:javascript-typescript"
 
@@ -298,7 +298,7 @@ jobs:
           no-fail: false
 
       - name: Subir SARIF a Code Scanning
-        uses: github/codeql-action/upload-sarif@v3 # v3.27.5
+        uses: github/codeql-action/upload-sarif@v4 # v3.27.5
         if: always()
         with:
           sarif_file: hadolint.sarif
