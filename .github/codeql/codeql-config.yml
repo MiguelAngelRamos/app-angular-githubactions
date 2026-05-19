@@ -1,0 +1,39 @@
+# ════════════════════════════════════════════════════════════════
+#  CodeQL · Configuración avanzada
+#  Curso: Desarrollo Seguro Avanzado · Kibernum / Banmédica
+#
+#  CodeQL es el motor SAST nativo de GitHub. Modela el código como
+#  una base de datos y consulta sobre ella con queries declarativas
+#  para detectar patrones vulnerables.
+# ════════════════════════════════════════════════════════════════
+
+name: "CodeQL · Banmédica Practica"
+
+# ── Suites de queries ─────────────────────────────────────────────
+#  security-extended añade ~40 queries sobre security-and-quality
+#  (default). Cubre categorías OWASP relevantes para una SPA con
+#  autenticación JWT y proxy a un backend NestJS:
+#    - A03 Injection: XSS via innerHTML, eval, Function(),
+#                     prototype pollution, SSRF en fetch/HttpClient.
+#    - A07 Auth Failures: validación incorrecta de JWT, tokens en
+#                         localStorage, cookies sin flags HttpOnly.
+#    - A08 Data Integrity: deserialización insegura, uso de Math.random
+#                          para generar tokens, hash sin salt.
+# ─────────────────────────────────────────────────────────────────
+queries:
+  - uses: security-extended
+
+# ── Rutas excluidas del análisis ──────────────────────────────────
+#  Reducen ruido y tiempo de análisis sin sacrificar cobertura:
+#    - dist/        : código ya compilado por Angular, redundante.
+#    - coverage/    : reportes de Vitest, no son código fuente.
+#    - node_modules : dependencias de terceros; sus vulnerabilidades
+#                     las cubre Dependabot vía SCA, no SAST.
+#    - **/*.spec.ts : tests unitarios — los patrones "inseguros"
+#                     en mocks/fixtures son falsos positivos.
+# ─────────────────────────────────────────────────────────────────
+paths-ignore:
+  - "dist/"
+  - "coverage/"
+  - "node_modules/"
+  - "**/*.spec.ts"

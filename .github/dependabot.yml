@@ -1,0 +1,55 @@
+# ════════════════════════════════════════════════════════════════
+#  Dependabot · SCA automatizado (Software Composition Analysis)
+#  OWASP A06:2021 — Vulnerable and Outdated Components
+#
+#  Dependabot abre PRs automáticas cuando:
+#    1) Aparece un CVE en una dependencia directa o transitiva
+#    2) Hay una versión mayor/menor publicada en el registry
+#
+#  Las alertas también aparecen en la pestaña Security → Dependabot
+#  alerts del repositorio (requiere activación manual en
+#  Settings → Code security and analysis → Dependabot alerts).
+# ════════════════════════════════════════════════════════════════
+
+version: 2
+
+updates:
+  # ── Dependencias npm/pnpm del proyecto Angular ────────────────
+  #  El ecosystem "npm" cubre pnpm-lock.yaml desde 2024. No existe
+  #  un ecosystem "pnpm" separado — Dependabot detecta el lockfile
+  #  automáticamente y mantiene la coherencia con pnpm.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      # Lunes temprano UTC → las PRs llegan antes del standup
+      # europeo/americano de los alumnos.
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Santiago"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ── GitHub Actions usadas en el workflow ──────────────────────
+  #  Detecta nuevas versiones de actions/checkout, codeql-action,
+  #  hadolint-action, docker/* etc. Mantiene el pipeline al día
+  #  con parches de seguridad de las propias actions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Santiago"
+    open-pull-requests-limit: 5
+    labels:
+      - "ci"
+      - "security"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"

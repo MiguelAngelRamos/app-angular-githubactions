@@ -1,0 +1,416 @@
+name: CI · Seguridad
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Permite disparar manualmente desde la UI
+
+# ── Concurrencia por rama ─────────────────────────────────────────
+#  Cancela ejecuciones anteriores de la misma rama si llega un push
+#  nuevo. Evita gastar runners en commits ya superados y reduce el
+#  tiempo de feedback al alumno cuando hace varios pushes seguidos.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Permisos mínimos a nivel workflow ─────────────────────────────
+#  Principio de mínimo privilegio (OWASP A01). Cada job que necesite
+#  permisos adicionales (security-events:write, packages:write) los
+#  declara explícitamente. Nunca usamos `write-all`.
+permissions:
+  contents: read
+
+jobs:
+  # ════════════════════════════════════════════════════════════════
+  #  install-and-lint
+  #  Punto de entrada del pipeline: instala dependencias y ejecuta
+  #  ESLint sobre src/. Es el primer gate — si el código no parsea
+  #  no tiene sentido seguir analizando.
+  # ════════════════════════════════════════════════════════════════
+  install-and-lint:
+    name: Instalar dependencias y lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Configurar Node.js 22
+        # Alineado con la imagen base del Dockerfile (node:22-alpine).
+        # Mantener la misma mayor entre CI y runtime evita "funciona en
+        # local pero falla en el contenedor".
+        uses: actions/setup-node@v4 # v4.1.0
+        with:
+          node-version: 22
+
+      - name: Habilitar pnpm 10.33.0 vía Corepack
+        # Corepack viene preinstalado con Node 22 y es la forma oficial
+        # de fijar la versión de pnpm sin depender de un install global.
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Resolver ruta del store de pnpm
+        id: pnpm-store
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache del store de pnpm
+        # Reduce minutos de runner facturados. La key cambia cuando el
+        # lockfile cambia → invalidación automática y segura.
+        uses: actions/cache@v4 # v4.2.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Instalar dependencias (frozen-lockfile)
+        # --frozen-lockfile rechaza la instalación si pnpm-lock.yaml no
+        # coincide con package.json. Garantiza builds reproducibles y
+        # bloquea ataques tipo dependency confusion vía lockfile manual.
+        run: pnpm install --frozen-lockfile
+
+      - name: Ejecutar ESLint
+        # Gate: falla si hay errores. Los warnings no bloquean para no
+        # frustrar al alumno con detalles cosméticos durante el curso.
+        run: pnpm lint
+
+  # ════════════════════════════════════════════════════════════════
+  #  test
+  #  Ejecuta los tests con cobertura. NO hay umbral de cobertura
+  #  porque la base de tests es mínima (1 spec en 39 archivos TS).
+  #  Documentado como pendiente en docs/ROADMAP.md.
+  # ════════════════════════════════════════════════════════════════
+  test:
+    name: Tests unitarios con cobertura
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: install-and-lint
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4 # v4.1.0
+        with:
+          node-version: 22
+
+      - name: Habilitar pnpm 10.33.0 vía Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Resolver ruta del store de pnpm
+        id: pnpm-store
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache del store de pnpm
+        uses: actions/cache@v4 # v4.2.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Instalar dependencias (frozen-lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Ejecutar tests con cobertura
+        # @angular/build:unit-test delega en Vitest. --no-watch fuerza
+        # ejecución única (modo CI); --coverage genera el reporte en
+        # coverage/. NO bloquea por umbral: hoy solo existe app.spec.ts.
+        run: pnpm test:ci
+
+      - name: Subir cobertura como artifact
+        # Retención de 30 días alineada con la política de Banmédica:
+        # suficiente para auditoría post-mortem, sin acumular storage.
+        uses: actions/upload-artifact@v4 # v4.4.3
+        if: always() # Sube el artifact aunque algún test falle
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage/
+          retention-days: 30
+
+  # ════════════════════════════════════════════════════════════════
+  #  sast-codeql
+  #  SAST = Static Application Security Testing.
+  #  CodeQL analiza el código sin ejecutarlo, detectando patrones
+  #  vulnerables. Reemplaza SonarQube según minuta Banmédica.
+  #
+  #  Categorías OWASP Top 10 2021 que CodeQL detecta sobre este
+  #  proyecto Angular:
+  #    - A03 Injection (XSS via innerHTML, eval, SSRF de fetch)
+  #    - A07 Identification and Auth Failures (jwt mal validado,
+  #          cookies sin flags, tokens en localStorage)
+  #    - A08 Software and Data Integrity Failures (deserialización
+  #          insegura, npm-install de paquetes no confiables)
+  # ════════════════════════════════════════════════════════════════
+  sast-codeql:
+    name: SAST · CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: install-and-lint
+    # Permisos necesarios para subir el reporte SARIF a Security tab.
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Inicializar CodeQL
+        # build-mode: none — Angular es interpretado para CodeQL (TS/JS).
+        # No requiere compilación previa para que CodeQL extraiga la BD.
+        # config-file referencia la configuración avanzada con queries
+        # extendidas y rutas excluidas.
+        uses: github/codeql-action/init@v3 # v3.27.5
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Ejecutar análisis CodeQL
+        # Sube automáticamente el SARIF a la pestaña Security → Code
+        # scanning alerts. Cada hallazgo viene con CWE asociado.
+        uses: github/codeql-action/analyze@v3 # v3.27.5
+        with:
+          category: "/language:javascript-typescript"
+
+  # ════════════════════════════════════════════════════════════════
+  #  sca-audit
+  #  SCA = Software Composition Analysis.
+  #  Detecta CVEs en dependencias declaradas en package.json/lockfile.
+  #
+  #  OWASP A06:2021 (Vulnerable and Outdated Components).
+  #
+  #  Complemento de Dependabot: Dependabot abre PRs de actualización
+  #  cuando aparece un CVE; este step bloquea el pipeline si hay un
+  #  CVE high/critical sin parche todavía. Sin este step, una vuln
+  #  recién publicada podría pasar a producción mientras Dependabot
+  #  aún no ha creado la PR.
+  # ════════════════════════════════════════════════════════════════
+  sca-audit:
+    name: SCA · pnpm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: install-and-lint
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4 # v4.1.0
+        with:
+          node-version: 22
+
+      - name: Habilitar pnpm 10.33.0 vía Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Resolver ruta del store de pnpm
+        id: pnpm-store
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache del store de pnpm
+        uses: actions/cache@v4 # v4.2.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Instalar dependencias (frozen-lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Auditoría bloqueante (high/critical, solo prod)
+        # --prod ignora devDependencies: un CVE en eslint o vitest no
+        # debe bloquear deploy porque no llega a runtime.
+        # --audit-level=high bloquea solo high y critical.
+        # Dependabot corre en paralelo de forma automática vía
+        # .github/dependabot.yml — abre PRs cuando detecta CVEs. Este
+        # step adicional bloquea el pipeline si hay CVEs high/critical
+        # sin parche.
+        run: pnpm audit --audit-level=high --prod
+
+      - name: Generar reporte JSON (informativo)
+        # `|| true` evita que la generación del reporte falle el job:
+        # el gate ya lo dio el step anterior. Este JSON queda como
+        # evidencia para auditoría posterior.
+        if: always()
+        run: pnpm audit --json > pnpm-audit.json || true
+
+      - name: Subir reporte de auditoría como artifact
+        uses: actions/upload-artifact@v4 # v4.4.3
+        if: always()
+        with:
+          name: pnpm-audit-${{ github.sha }}
+          path: pnpm-audit.json
+          retention-days: 30
+
+  # ════════════════════════════════════════════════════════════════
+  #  dockerfile-lint
+  #  Hadolint = linter estático del Dockerfile. Detecta antipatrones
+  #  que la imagen ya implementa bien (USER non-root, multi-stage,
+  #  pin de versiones) pero también captura regresiones si alguien
+  #  edita el Dockerfile en el futuro.
+  #
+  #  No depende de install-and-lint: corre en paralelo desde el
+  #  inicio para acelerar feedback.
+  # ════════════════════════════════════════════════════════════════
+  dockerfile-lint:
+    name: Lint del Dockerfile · hadolint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write # Para subir SARIF a Security tab
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Ejecutar hadolint
+        # failure-threshold: error → solo bloquea ante errores;
+        # warnings se reportan pero no rompen el pipeline.
+        uses: hadolint/hadolint-action@v3.1.0 # v3.1.0
+        with:
+          dockerfile: Dockerfile
+          format: sarif
+          output-file: hadolint.sarif
+          failure-threshold: error
+          no-fail: false
+
+      - name: Subir SARIF a Code Scanning
+        uses: github/codeql-action/upload-sarif@v3 # v3.27.5
+        if: always()
+        with:
+          sarif_file: hadolint.sarif
+          category: hadolint
+
+  # ════════════════════════════════════════════════════════════════
+  #  docker-build
+  #  Construye la imagen pero NO la publica. Sirve como gate final:
+  #  si todos los análisis pasaron pero el Dockerfile no compila la
+  #  app, queremos enterarnos antes de tocar ghcr.io.
+  #
+  #  Cache de capas Docker vía GHA cache (type=gha) — acelera builds
+  #  iterativos sin acceder a un registry intermedio.
+  # ════════════════════════════════════════════════════════════════
+  docker-build:
+    name: Build de imagen Docker (sin publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [test, sast-codeql, sca-audit, dockerfile-lint]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@v3 # v3.7.1
+
+      - name: Extraer metadata (tags + labels OCI)
+        # docker/metadata-action centraliza la generación de tags y labels.
+        # Normaliza el nombre de la imagen a minúsculas — soluciona el error
+        # "repository name must be lowercase" cuando el owner del repo
+        # contiene mayúsculas (p.ej. MiguelAngelRamos) — y emite labels OCI
+        # estándar automáticamente. La misma config se reutiliza en
+        # push-to-ghcr para mantener consistencia entre build y publish.
+        id: meta
+        uses: docker/metadata-action@v5 # v5.7.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build local (push=false)
+        uses: docker/build-push-action@v6 # v6.10.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ════════════════════════════════════════════════════════════════
+  #  push-to-ghcr
+  #  Publica la imagen en ghcr.io. Solo en main: las PRs no deben
+  #  generar imágenes etiquetadas como :latest porque corromperían
+  #  el canal de despliegue.
+  #
+  #  Cosign (firma keyless) NO está incluido — Banmédica aún no
+  #  aprueba la herramienta. Documentado en docs/ROADMAP.md.
+  # ════════════════════════════════════════════════════════════════
+  push-to-ghcr:
+    name: Publicar imagen en ghcr.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: docker-build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write # Necesario para push a ghcr.io
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@v3 # v3.7.1
+
+      - name: Login en ghcr.io
+        # GITHUB_TOKEN es un secret efímero generado por GitHub para
+        # cada ejecución. No requiere configuración manual.
+        uses: docker/login-action@v3 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extraer metadata (tags + labels OCI)
+        # Misma configuración que docker-build → tags consistentes entre
+        # ambos jobs y un único punto de mantenimiento. metadata-action
+        # emite automáticamente los labels OCI estándar (source, revision,
+        # created, title, url, version, description, licenses), incluyendo
+        # los tres que antes generábamos a mano. El tag :latest solo
+        # aparece cuando github.ref es la rama por defecto (main).
+        id: meta
+        uses: docker/metadata-action@v5 # v5.7.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build y push a ghcr.io
+        uses: docker/build-push-action@v6 # v6.10.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
