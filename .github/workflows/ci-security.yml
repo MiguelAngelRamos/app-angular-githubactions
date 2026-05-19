@@ -344,7 +344,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build local (push=false)
-        uses: docker/build-push-action@v6 # v6.10.0
+        uses: docker/build-push-action@v7 # v6.10.0
         with:
           context: .
           file: ./Dockerfile
@@ -405,7 +405,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build y push a ghcr.io
-        uses: docker/build-push-action@v6 # v6.10.0
+        uses: docker/build-push-action@v7 # v6.10.0
         with:
           context: .
           file: ./Dockerfile
