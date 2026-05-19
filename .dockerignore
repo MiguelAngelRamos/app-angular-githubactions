@@ -1,0 +1,35 @@
+# Dependencias y builds locales (no deben entrar al build context)
+node_modules/
+dist/
+
+# Archivos locales (Angular maneja entornos en src/environments/, no usa .env)
+*.local
+
+# Git
+.git/
+.gitignore
+
+# Archivos de editor/IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Tests y cobertura
+coverage/
+.nyc_output/
+
+# Documentación interna
+doc/
+*.md
+!README.md
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Nota: los environments viven en src/environments/ (environment.ts y
+# environment.prod.ts). Angular CLI hace fileReplacements en build según
+# la configuración, así que no se necesitan archivos .env en el contexto.

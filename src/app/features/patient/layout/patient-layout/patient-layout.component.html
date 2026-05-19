@@ -1,0 +1,91 @@
+<div class="patient-shell">
+  <aside
+    class="patient-sidebar"
+    [class.patient-sidebar--open]="isSidebarOpen()"
+    aria-label="Navegación del paciente"
+  >
+    <div class="patient-sidebar__brand">
+      <span class="patient-sidebar__brand__dot" aria-hidden="true"></span>
+      <span class="fw-semibold">Mi clínica</span>
+    </div>
+
+    <p class="patient-sidebar__section-label">Mi cuenta</p>
+    <nav class="patient-sidebar__nav">
+      <ul class="nav nav-pills flex-column gap-1">
+        <li class="nav-item">
+          <a
+            routerLink="/patient/dashboard"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeSidebar()"
+          >
+            <span aria-hidden="true">▦</span>
+            <span>Panel</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a
+            routerLink="/patient/mis-citas"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeSidebar()"
+          >
+            <span aria-hidden="true">📅</span>
+            <span>Mis citas</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a
+            routerLink="/patient/mi-perfil"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeSidebar()"
+          >
+            <span aria-hidden="true">👤</span>
+            <span>Mi perfil</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </aside>
+
+  <div class="patient-main">
+    <header class="patient-topbar">
+      <button
+        type="button"
+        class="btn btn-outline-secondary btn-sm d-md-none"
+        (click)="toggleSidebar()"
+        [attr.aria-expanded]="isSidebarOpen()"
+        aria-controls="patient-sidebar"
+        aria-label="Mostrar/ocultar menú"
+      >
+        <span aria-hidden="true">☰</span>
+      </button>
+      <h2 class="patient-topbar__title me-auto">Mi panel</h2>
+      <div class="dropdown">
+        <button
+          type="button"
+          class="btn btn-light d-flex align-items-center gap-2"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <span class="patient-topbar__avatar" aria-hidden="true">{{ userInitial() }}</span>
+          <span class="d-none d-sm-inline text-tk-soft">{{ currentUser()?.email }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <button type="button" class="dropdown-item" (click)="onLogout()">
+              Cerrar sesión
+            </button>
+          </li>
+        </ul>
+      </div>
+    </header>
+
+    <main class="patient-content">
+      <div class="app-content-shell">
+        <router-outlet />
+      </div>
+    </main>
+  </div>
+</div>

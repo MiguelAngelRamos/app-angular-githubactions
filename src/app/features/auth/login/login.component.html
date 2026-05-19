@@ -1,0 +1,101 @@
+<section class="auth-shell">
+  <div class="auth-card p-4 p-md-5">
+    <div class="auth-card__brand">
+      <span class="auth-card__brand__dot" aria-hidden="true"></span>
+      <span>Clínica</span>
+    </div>
+
+    <h1 class="auth-title">Bienvenido</h1>
+    <p class="auth-subtitle">Inicia sesión para acceder a tu panel</p>
+
+    @if (serverErrorMessage(); as errorMessage) {
+      <div
+        class="alert alert-danger d-flex align-items-start gap-2 mb-3"
+        role="alert"
+        aria-live="polite"
+      >
+        <span aria-hidden="true">⚠</span>
+        <span>{{ errorMessage }}</span>
+      </div>
+    }
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate>
+      <div class="mb-3">
+        <label for="login-email" class="form-label">Email</label>
+        <input
+          id="login-email"
+          type="email"
+          class="form-control"
+          formControlName="email"
+          autocomplete="username"
+          inputmode="email"
+          spellcheck="false"
+          autocapitalize="off"
+          [attr.aria-invalid]="loginForm.controls.email.invalid && loginForm.controls.email.touched"
+          aria-describedby="login-email-help"
+        />
+        @if (loginForm.controls.email.touched && loginForm.controls.email.invalid) {
+          <div id="login-email-help" class="invalid-feedback d-block">
+            @if (loginForm.controls.email.errors?.['required']) {
+              El email es obligatorio.
+            } @else if (loginForm.controls.email.errors?.['email']) {
+              Ingresa un email válido.
+            }
+          </div>
+        }
+      </div>
+
+      <div class="mb-4">
+        <label for="login-password" class="form-label">Contraseña</label>
+        <div class="input-group">
+          <input
+            id="login-password"
+            [type]="isPasswordVisible() ? 'text' : 'password'"
+            class="form-control"
+            formControlName="password"
+            autocomplete="current-password"
+            spellcheck="false"
+            [attr.aria-invalid]="loginForm.controls.password.invalid && loginForm.controls.password.touched"
+            aria-describedby="login-password-help"
+          />
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            (click)="togglePasswordVisibility()"
+            [attr.aria-pressed]="isPasswordVisible()"
+            [attr.aria-label]="isPasswordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          >
+            {{ isPasswordVisible() ? 'Ocultar' : 'Mostrar' }}
+          </button>
+        </div>
+        @if (loginForm.controls.password.touched && loginForm.controls.password.invalid) {
+          <div id="login-password-help" class="invalid-feedback d-block">
+            @if (loginForm.controls.password.errors?.['required']) {
+              La contraseña es obligatoria.
+            } @else if (loginForm.controls.password.errors?.['minlength']) {
+              La contraseña debe tener al menos 8 caracteres.
+            }
+          </div>
+        }
+      </div>
+
+      <button
+        type="submit"
+        class="btn btn-primary w-100 mb-3"
+        [disabled]="isSubmitting()"
+      >
+        @if (isSubmitting()) {
+          <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          <span>Ingresando...</span>
+        } @else {
+          <span>Iniciar sesión</span>
+        }
+      </button>
+
+      <p class="text-center mb-0 small text-tk-soft">
+        ¿No tienes cuenta?
+        <a routerLink="/register" class="link-primary">Regístrate</a>
+      </p>
+    </form>
+  </div>
+</section>

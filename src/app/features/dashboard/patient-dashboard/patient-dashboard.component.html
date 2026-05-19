@@ -1,0 +1,85 @@
+<section class="patient-dashboard">
+  <header class="mb-4">
+    <p class="text-tk-muted text-uppercase small fw-semibold mb-1" style="letter-spacing: 0.08em;">
+      Bienvenido
+    </p>
+    <h2 class="h3 mb-1">Hola, {{ greetingName() }}</h2>
+    <p class="text-tk-soft mb-0">Este es tu panel personal de paciente.</p>
+  </header>
+
+  @if (isLoading()) {
+    <output class="d-flex align-items-center gap-2 text-tk-soft" aria-live="polite">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      <span>Cargando tu panel...</span>
+    </output>
+  } @else if (errorMessage(); as message) {
+    <div class="alert alert-danger d-flex align-items-center gap-3 flex-wrap" role="alert">
+      <span class="me-auto">{{ message }}</span>
+      <button type="button" class="btn btn-sm btn-outline-danger" (click)="loadDashboard()">
+        Reintentar
+      </button>
+    </div>
+  } @else {
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-md-6">
+        <article class="card app-card-hover h-100">
+          <div class="card-body">
+            <h3 class="h6 text-tk-muted text-uppercase mb-3" style="letter-spacing: 0.06em;">Próxima cita</h3>
+            @if (nextAppointment(); as appointment) {
+              <p class="h5 mb-1" style="color: var(--tk-cyan);">{{ appointment.counterpartName }}</p>
+              <p class="mb-2 text-tk-soft">
+                {{ appointment.date }} · {{ appointment.startTime }} – {{ appointment.endTime }}
+              </p>
+              <span class="badge bg-info-subtle text-info-emphasis">
+                {{ appointment.status }}
+              </span>
+            } @else {
+              <p class="text-tk-soft mb-0">No tienes citas próximas.</p>
+            }
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <article class="card h-100">
+          <div class="card-body">
+            <h3 class="h6 text-tk-muted text-uppercase mb-3" style="letter-spacing: 0.06em;">Tu historial</h3>
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+              <span class="text-tk-soft">Citas pasadas</span>
+              <strong class="h5 mb-0" style="color: var(--tk-purple);">{{ pastAppointmentCount() }}</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-tk-soft">Total de citas</span>
+              <strong class="h5 mb-0">{{ totalAppointmentCount() }}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <article class="card">
+      <div class="card-body">
+        <h3 class="h6 text-tk-muted text-uppercase mb-3" style="letter-spacing: 0.06em;">Próximas citas</h3>
+        @if (upcomingAppointments().length === 0) {
+          <p class="text-tk-soft mb-0">No tienes citas programadas.</p>
+        } @else {
+          <ul class="list-group list-group-flush">
+            @for (appointment of upcomingAppointments(); track appointment.id) {
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                <div>
+                  <p class="mb-0 fw-semibold">{{ appointment.counterpartName }}</p>
+                  <p class="mb-0 small text-tk-soft">
+                    {{ appointment.date }} · {{ appointment.startTime }} – {{ appointment.endTime }}
+                  </p>
+                </div>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">
+                  {{ appointment.status }}
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </article>
+  }
+</section>

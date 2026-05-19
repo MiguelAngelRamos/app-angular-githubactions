@@ -1,0 +1,15 @@
+<section class="d-flex align-items-center justify-content-center min-vh-100 bg-body-tertiary px-3">
+  <div class="text-center">
+    <p class="display-1 fw-bold text-primary mb-2">404</p>
+    <h1 class="h3 mb-3">Página no encontrada</h1>
+    <p class="text-secondary mb-4">
+      La ruta que intentas abrir no existe o ya no está disponible.
+    </p>
+    <div class="d-flex gap-2 justify-content-center">
+      <button type="button" class="btn btn-outline-secondary" (click)="goBack()">
+        Volver
+      </button>
+      <a routerLink="/dashboard" class="btn btn-primary">Ir al panel</a>
+    </div>
+  </div>
+</section>

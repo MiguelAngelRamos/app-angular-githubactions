@@ -1,0 +1,82 @@
+<section class="admin-dashboard">
+  <header class="mb-4">
+    <p class="text-tk-muted text-uppercase small fw-semibold mb-1" style="letter-spacing: 0.08em;">
+      Resumen general
+    </p>
+    <h2 class="h3 mb-1">Panel de administración</h2>
+    <p class="text-tk-soft mb-0">Métricas agregadas de la clínica.</p>
+  </header>
+
+  @if (isLoading()) {
+    <output class="d-flex align-items-center gap-2 text-tk-soft" aria-live="polite">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      <span>Cargando panel...</span>
+    </output>
+  } @else if (errorMessage(); as message) {
+    <div class="alert alert-danger d-flex align-items-center gap-3 flex-wrap" role="alert">
+      <span class="me-auto">{{ message }}</span>
+      <button type="button" class="btn btn-sm btn-outline-danger" (click)="loadDashboard()">
+        Reintentar
+      </button>
+    </div>
+  } @else {
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-sm-6 col-xl-3">
+        <article class="card app-card-hover h-100">
+          <div class="card-body">
+            <p class="text-tk-muted text-uppercase small mb-2" style="letter-spacing: 0.06em;">Usuarios</p>
+            <p class="display-6 fw-semibold mb-1" style="color: var(--tk-blue);">{{ userCount() | number }}</p>
+            <p class="small text-tk-soft mb-0">
+              {{ usersByRole().admin | number }} admin · {{ usersByRole().doctor | number }} médicos · {{ usersByRole().patient | number }} pacientes
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-sm-6 col-xl-3">
+        <article class="card app-card-hover h-100">
+          <div class="card-body">
+            <p class="text-tk-muted text-uppercase small mb-2" style="letter-spacing: 0.06em;">Médicos</p>
+            <p class="display-6 fw-semibold mb-0" style="color: var(--tk-cyan);">{{ doctorCount() | number }}</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-sm-6 col-xl-3">
+        <article class="card app-card-hover h-100">
+          <div class="card-body">
+            <p class="text-tk-muted text-uppercase small mb-2" style="letter-spacing: 0.06em;">Pacientes</p>
+            <p class="display-6 fw-semibold mb-0" style="color: var(--tk-green);">{{ patientCount() | number }}</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-sm-6 col-xl-3">
+        <article class="card app-card-hover h-100">
+          <div class="card-body">
+            <p class="text-tk-muted text-uppercase small mb-2" style="letter-spacing: 0.06em;">Especialidades</p>
+            <p class="display-6 fw-semibold mb-0" style="color: var(--tk-purple);">{{ specialtyCount() | number }}</p>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <article class="card h-100">
+          <div class="card-body">
+            <h3 class="h6 text-tk-muted text-uppercase mb-3" style="letter-spacing: 0.06em;">Citas</h3>
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+              <span class="text-tk-soft">Hoy</span>
+              <strong class="h5 mb-0" style="color: var(--tk-orange);">{{ appointmentToday() | number }}</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-tk-soft">Total histórico</span>
+              <strong class="h5 mb-0">{{ appointmentTotal() | number }}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  }
+</section>

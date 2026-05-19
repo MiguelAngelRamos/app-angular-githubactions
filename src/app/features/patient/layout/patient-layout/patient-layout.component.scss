@@ -1,0 +1,141 @@
+:host {
+  display: block;
+  height: 100vh;
+}
+
+.patient-shell {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--tk-bg);
+}
+
+.patient-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--tk-bg-panel);
+  border-right: 1px solid var(--tk-border);
+  overflow-y: auto;
+}
+
+.patient-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--tk-border);
+  color: var(--tk-fg);
+  letter-spacing: -0.01em;
+
+  &__dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--tk-cyan);
+    box-shadow: 0 0 12px rgba(125, 207, 255, 0.6);
+  }
+}
+
+.patient-sidebar__section-label {
+  padding: 1rem 1.25rem 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: var(--tk-fg-muted);
+  font-weight: 600;
+}
+
+.patient-sidebar__nav {
+  flex: 1;
+  padding: 0.5rem;
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: var(--tk-radius-sm);
+    color: var(--tk-fg-soft);
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: var(--tk-bg-elevated);
+      color: var(--tk-fg);
+      text-decoration: none;
+    }
+
+    &.active {
+      background: rgba(125, 207, 255, 0.18);
+      color: var(--tk-cyan);
+      font-weight: 600;
+    }
+  }
+}
+
+.patient-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.patient-topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.5rem;
+  background: var(--tk-bg);
+  border-bottom: 1px solid var(--tk-border);
+  min-height: 64px;
+}
+
+.patient-topbar__title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--tk-fg-soft);
+  margin: 0;
+}
+
+.patient-topbar__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--tk-cyan), var(--tk-blue));
+  color: #0e1320;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.patient-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.75rem;
+  background: var(--tk-bg);
+}
+
+@media (max-width: 767.98px) {
+  .patient-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 248px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease-in-out;
+    z-index: 1040;
+    box-shadow: var(--tk-shadow-lg);
+  }
+
+  .patient-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .patient-content {
+    padding: 1rem;
+  }
+}

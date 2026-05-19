@@ -1,0 +1,69 @@
+<div class="admin-shell">
+  <aside
+    class="admin-sidebar"
+    [class.admin-sidebar--open]="isSidebarOpen()"
+    aria-label="Navegación de administración"
+  >
+    <div class="admin-sidebar__brand">
+      <span class="admin-sidebar__brand__dot" aria-hidden="true"></span>
+      <span class="fw-semibold">Clínica · Admin</span>
+    </div>
+
+    <p class="admin-sidebar__section-label">Panel</p>
+    <nav class="admin-sidebar__nav">
+      <ul class="nav nav-pills flex-column gap-1">
+        <li class="nav-item">
+          <a
+            routerLink="/admin/dashboard"
+            routerLinkActive="active"
+            class="nav-link"
+            (click)="closeSidebar()"
+          >
+            <span aria-hidden="true">▦</span>
+            <span>Resumen</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </aside>
+
+  <div class="admin-main">
+    <header class="admin-topbar">
+      <button
+        type="button"
+        class="btn btn-outline-secondary btn-sm d-md-none"
+        (click)="toggleSidebar()"
+        [attr.aria-expanded]="isSidebarOpen()"
+        aria-controls="admin-sidebar"
+        aria-label="Mostrar/ocultar menú"
+      >
+        <span aria-hidden="true">☰</span>
+      </button>
+      <h2 class="admin-topbar__title me-auto">Panel de administración</h2>
+      <div class="dropdown">
+        <button
+          type="button"
+          class="btn btn-light d-flex align-items-center gap-2"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <span class="admin-topbar__avatar" aria-hidden="true">{{ userInitial() }}</span>
+          <span class="d-none d-sm-inline text-tk-soft">{{ currentUser()?.email }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <button type="button" class="dropdown-item" (click)="onLogout()">
+              Cerrar sesión
+            </button>
+          </li>
+        </ul>
+      </div>
+    </header>
+
+    <main class="admin-content">
+      <div class="app-content-shell">
+        <router-outlet />
+      </div>
+    </main>
+  </div>
+</div>
