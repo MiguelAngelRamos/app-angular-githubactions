@@ -305,6 +305,62 @@ jobs:
           category: hadolint
 
   # ════════════════════════════════════════════════════════════════
+  #  dockerfile-pin-digest
+  #  Verifica que TODOS los FROM del Dockerfile estén pineados por
+  #  digest SHA256 (@sha256:...), no solo por tag.
+  #
+  #  ¿Por qué un job aparte si ya tenemos Hadolint?
+  #  Hadolint NO valida pin por digest. Sus reglas DL3006/DL3007
+  #  solo exigen que exista un tag y que ese tag no sea `latest`.
+  #  Considera "nginx:1.27-alpine" como pineado, pero ese tag es
+  #  mutable: el mantenedor puede republicarlo cada vez que sale
+  #  un parche de seguridad de Alpine, cambiando el SHA256 sin
+  #  cambiar el tag. Solo el digest garantiza:
+  #    - Reproducibilidad bit-a-bit entre builds.
+  #    - Inmutabilidad frente a un compromiso del registry.
+  #
+  #  Implementación: check ad-hoc con grep, no Conftest/OPA.
+  #  Una sola regla no justifica una herramienta adicional.
+  #
+  #  Job NO bloqueante (no aparece en `needs:` de docker-build):
+  #  se reporta como evidencia educativa de que existe el problema,
+  #  no detiene el deploy mientras el equipo lo corrige.
+  # ════════════════════════════════════════════════════════════════
+  dockerfile-pin-digest:
+    name: Pin por digest en Dockerfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4 # v4.2.2
+
+      - name: Verificar pin por @sha256 en todos los FROM
+        # Busca líneas que empiecen con FROM y no contengan "@sha256:".
+        # Las anotaciones ::error file=...,line=... aparecen inline en
+        # la vista de diff del PR — feedback visual inmediato sobre la
+        # línea exacta del Dockerfile que hay que corregir.
+        run: |
+          set -uo pipefail
+          unpinned=$(grep -nE '^FROM[[:space:]]+' Dockerfile | grep -v '@sha256:' || true)
+          if [ -n "$unpinned" ]; then
+            echo "❌ Hay FROM sin pin por digest (@sha256:)."
+            echo ""
+            echo "Líneas ofensoras:"
+            echo "$unpinned"
+            echo ""
+            while IFS= read -r line; do
+              lineno=$(echo "$line" | cut -d: -f1)
+              content=$(echo "$line" | cut -d: -f2-)
+              echo "::error file=Dockerfile,line=${lineno}::FROM sin digest SHA256: ${content}"
+            done <<< "$unpinned"
+            exit 1
+          fi
+          echo "✅ Todos los FROM usan pin por @sha256:"
+
+  # ════════════════════════════════════════════════════════════════
   #  docker-build
   #  Construye la imagen pero NO la publica. Sirve como gate final:
   #  si todos los análisis pasaron pero el Dockerfile no compila la
