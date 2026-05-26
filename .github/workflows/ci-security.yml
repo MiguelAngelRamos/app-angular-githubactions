@@ -134,7 +134,7 @@ jobs:
       - name: Subir cobertura como artifact
         # Retención de 30 días alineada con la política de Banmédica:
         # suficiente para auditoría post-mortem, sin acumular storage.
-        uses: actions/upload-artifact@v4 # v4.4.3
+        uses: actions/upload-artifact@v7 # v4.4.3
         if: always() # Sube el artifact aunque algún test falle
         with:
           name: coverage-${{ github.sha }}
@@ -257,7 +257,7 @@ jobs:
         run: pnpm audit --json > pnpm-audit.json || true
 
       - name: Subir reporte de auditoría como artifact
-        uses: actions/upload-artifact@v4 # v4.4.3
+        uses: actions/upload-artifact@v7 # v4.4.3
         if: always()
         with:
           name: pnpm-audit-${{ github.sha }}
