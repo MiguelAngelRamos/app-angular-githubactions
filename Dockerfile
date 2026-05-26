@@ -21,7 +21,7 @@
 #  y devDependencies (dependencias solo de desarrollo) son descartados
 #  automáticamente por Docker tras el build.
 # ════════════════════════════════════════════════════════════════
-FROM node:22-alpine AS builder
+FROM node:22.22.2-alpine3.22@sha256:b77017c37f430e4466ff497058948a2f16e8b59779600d53711eeb7b999b0f4e AS builder
 
 # ── Habilitar pnpm via Corepack (como root) ───────────────────
 # Corepack necesita escribir en /usr/local/bin/ para crear el
@@ -30,7 +30,11 @@ FROM node:22-alpine AS builder
 # Es seguro: solo crea un symlink, no ejecuta código del proyecto.
 # El paso peligroso (pnpm install, que sí corre scripts de
 # paquetes) se ejecutará luego como usuario "node".
-RUN corepack enable
+# corepack prepare fija la versión exacta de pnpm: sin esto,
+# corepack descargaría la última disponible en cada build, lo que
+# rompe la reproducibilidad si pnpm introduce un breaking change.
+RUN corepack enable \
+ && corepack prepare pnpm@9.15.0 --activate
 
 # ── Seguridad: principio de mínimo privilegio ─────────────────
 # NO ejecutamos comandos como root. Si una dependencia maliciosa
@@ -57,7 +61,13 @@ COPY --chown=node:node package.json pnpm-lock.yaml ./
 # --frozen-lockfile: instala EXACTAMENTE las versiones del lockfile.
 # Si el lockfile está desactualizado respecto a package.json, falla.
 # Esto garantiza builds reproducibles: la misma imagen hoy y mañana.
-RUN pnpm install --frozen-lockfile
+# ignore-scripts bloquea los post-install scripts de dependencias:
+# un paquete malicioso o comprometido no puede ejecutar código
+# arbitrario durante la instalación (vector habitual de supply chain).
+# --prefer-offline reutiliza la caché local si existe, evitando
+# peticiones de red innecesarias y acelerando el build en CI.
+RUN pnpm config set ignore-scripts true \
+ && pnpm install --frozen-lockfile --prefer-offline
 
 # Ahora copiamos el resto del código fuente (lo que .dockerignore
 # no excluya).
@@ -86,7 +96,11 @@ RUN pnpm run build --configuration production
 #  No hay Node, no hay código fuente, no hay node_modules,
 #  no hay devDependencies → menor tamaño, menor superficie de ataque.
 # ════════════════════════════════════════════════════════════════
-FROM nginx:1.27-alpine AS runner
+FROM nginx:1.27-alpine@sha256:0272e4604ed93c1792f03695a033a6e8546840f86e0de20a884bb17d2c924883 AS runner
+
+LABEL org.opencontainers.image.source="https://github.com/MiguelAngelRamos/app-angular-githubactions" \
+      org.opencontainers.image.title="clinic-frontend" \
+      org.opencontainers.image.description="Angular 21 SPA"
 
 # ── Seguridad: eliminar la configuración por defecto de Nginx ──
 # El default.conf que viene con la imagen oficial:
@@ -118,7 +132,9 @@ COPY nginx.conf /etc/nginx/conf.d/app.conf
 RUN chmod -R 555 /usr/share/nginx/html \
     && chown -R nginx:nginx /var/cache/nginx \
     && chown -R nginx:nginx /var/log/nginx \
-    && chown nginx:nginx /etc/nginx/conf.d/app.conf
+    && chown nginx:nginx /etc/nginx/conf.d/app.conf \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid
 
 # ── Seguridad: ejecutar Nginx como usuario sin privilegios ─────
 # Si Nginx fuese vulnerado y el atacante lograra ejecución de
@@ -147,7 +163,7 @@ EXPOSE 8080
 # wget viene incluido en BusyBox (suite de utilidades de Alpine
 # Linux), por lo que está disponible sin instalar nada.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost:8080/ || exit 1
+    CMD wget -q --spider http://localhost:8080/health || exit 1
 
 # Arrancar Nginx en primer plano (foreground).
 # Sin "daemon off", Nginx se demoniza (corre en segundo plano) y
