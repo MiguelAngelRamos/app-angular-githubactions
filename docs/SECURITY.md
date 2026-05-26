@@ -229,7 +229,92 @@ Sin esta decisión, tendríamos que correr como root (riesgo enorme) o añadir c
 
 ---
 
-## 7. Resumen de mapeo OWASP Top 10 2021
+## 7. SCA en 3 capas: pnpm audit, Dependabot alerts, Dependabot security updates
+
+Archivos clave:
+- [.github/workflows/ci-security.yml](../.github/workflows/ci-security.yml) (job `SCA · pnpm audit`)
+- [.github/dependabot.yml](../.github/dependabot.yml)
+- Settings → Advanced Security (Dependency graph, Dependabot alerts, Dependabot security updates)
+
+### Qué hace el código
+
+Tres mecanismos complementarios cubren **OWASP A06:2021 (Vulnerable and Outdated Components)**:
+
+| Mecanismo | Cuándo dispara | Qué hace | Visible en |
+|---|---|---|---|
+| `pnpm audit` (job CI) | Cada push / PR | Falla el workflow si hay CVEs en el lockfile | Logs del workflow |
+| Dependabot version updates | Lunes 06:00 `America/Santiago` (cron) | Abre PR cuando hay versión nueva, sin importar si es por CVE | Tab Pull requests |
+| Dependabot alerts + security updates | Inmediato al publicarse el CVE en la GHSA | Notifica en UI y abre PR automática con el patch | Tab Security + Tab Pull requests |
+
+### Por qué los tres juntos
+
+Cada uno tiene un hueco que cubren los otros dos:
+
+- **`pnpm audit`** solo detecta cuando alguien hace push. Un CVE crítico publicado un viernes 18:00 no se detecta hasta el siguiente commit.
+- **Dependabot version updates** llega los lunes 06:00; si el CVE se publica el martes, espera 6 días.
+- **Dependabot security updates** actúa al instante, pero solo sobre lo que `alerts` detectó — necesita que la feature esté activa en *Settings → Advanced Security*.
+
+Combinados: detección reactiva en CI + ola semanal de modernización + parche inmediato ante CVE.
+
+### Por qué el primer escaneo no respeta el `schedule:`
+
+El bloque `schedule:` de [.github/dependabot.yml](../.github/dependabot.yml) controla el **tick recurrente**, no la primera ejecución. GitHub tiene tres disparadores distintos:
+
+| Disparador | ¿Respeta `schedule`? | Cuándo |
+|---|---|---|
+| Initial scan (bootstrap) | ❌ No | Primera detección de `dependabot.yml` válido en la rama por defecto |
+| Version updates | ✅ Sí | Lunes 06:00 `America/Santiago` |
+| Security updates (alerts) | ❌ No | Inmediato cuando aparece un CVE relevante |
+
+El initial scan es por diseño: sería absurdo esperar 6 días para enterarte de que tu `pnpm-lock.yaml` arrastra CVEs conocidos.
+
+### Evidencia capturada en este repo (2026-05-21)
+
+**Primer push del config** `38fe112 pipeline` a las **2026-05-19 14:47:35 UTC** (martes, 10:47 Santiago — ni lunes ni 06:00). Reacción de Dependabot:
+
+| Tiempo desde el push | PRs creadas |
+|---|---|
+| +50 s | PR #1 codeql-action 3→4 |
+| +52 s a +1 min | PRs #2–#5 (docker/* y actions/* version bumps) |
+| +5 min 42 s | PR #6 jsdom 27→29 |
+| +6 a +8 min | PRs #7–#9 (@angular/cli, @angular/build, eslint) |
+
+9 PRs en ~8 minutos, sin esperar al cron. Es el initial scan en acción.
+
+**Activación posterior de Dependabot alerts** a las **2026-05-21 20:58:22Z**. Reacción:
+
+| Tiempo desde la activación | Evento |
+|---|---|
+| 0 s | Escaneo inicial: **7 alerts detectadas** (1 high · 5 medium · 1 low) |
+| +78 s | PR #11 `hono 4.12.16 → 4.12.21` (resuelve **3 alerts** de hono en una sola PR) |
+| +85 s | PR #12 `fast-uri 3.1.1 → 3.1.2` (resuelve el HIGH) |
+| +90 s | PR #13 `ip-address 10.1.0 → 10.2.0` |
+
+5 alerts en estado `open` se consolidaron en **3 PRs** (las 3 de `hono` comparten el mismo upgrade); las 2 alerts `auto_dismissed` (`ws`, `brace-expansion`) no necesitaron PR porque la regla por defecto de *Dependabot rules* las cerró al determinar que el código no las invoca de forma explotable.
+
+### La lección pedagógica de A06: dependencias transitivas
+
+Ninguno de los paquetes con CVE (`hono`, `fast-uri`, `ip-address`, `ws`, `brace-expansion`) aparece en `package.json` — el desarrollador nunca los instaló conscientemente. Viven en el `pnpm-lock.yaml` porque son **deps transitivas** del toolchain de Angular/Vite. Ejemplo verificable:
+
+```bash
+# package.json: 0 menciones de hono / fast-uri / ip-address
+# pnpm-lock.yaml:
+#   hono: 4.12.16  (×2 paths)
+#   fast-uri: 3.1.1 (×2 paths)
+#   ip-address: 10.1.0 y 10.2.0 (×2 paths)
+```
+
+La esencia de **A06:2021** es exactamente esto: las vulnerabilidades viven en código que el desarrollador no eligió. Sin SCA automatizado, la única alternativa es leer manualmente miles de líneas de lockfile.
+
+### Qué pasaría si se quitara cada capa
+
+- **Sin `pnpm audit` en CI**: los CVEs solo se descubren cuando alguien abre la pestaña Security. En un equipo sin disciplina, esos avisos se acumulan invisibles.
+- **Sin Dependabot version updates**: el lockfile se congela. A los 6 meses la app corre sobre versiones con CVEs conocidos pero sin path de upgrade trivial (mayores acumulados, breaking changes).
+- **Sin Dependabot alerts/security updates**: aunque `pnpm audit` falle en CI, nadie abre la PR del fix. El developer ve el CI rojo, marca el job como "non-blocking" (como hacemos hoy con el `dockerfile-pin-digest` check) y olvida el CVE.
+
+---
+
+## 8. Resumen de mapeo OWASP Top 10 2021
 
 | Decisión | OWASP |
 |---|---|
@@ -241,5 +326,6 @@ Sin esta decisión, tendríamos que correr como root (riesgo enorme) o añadir c
 | `expires` en lugar de `add_header` en locations | A05 |
 | Dockerfile multi-stage + USER non-root + 555 | A05, A06 |
 | Bloqueo de `.env`, `.map`, `.ts`, archivos ocultos en nginx | A02, A05 |
+| SCA en 3 capas (pnpm audit + Dependabot alerts + security updates) | **A06** |
 
 Toda esta inversión es lo que el pipeline ([PIPELINE.md](./PIPELINE.md)) protege contra regresiones futuras.
